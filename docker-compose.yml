@@ -1,0 +1,100 @@
+services:
+  # Stockage objet S3-compatible
+  minio:
+    image: minio/minio:latest
+    container_name: pfr-minio
+    ports:
+      - "9000:9000"   
+      - "9001:9001"   
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - tp-network
+
+  # Base de données documentaire
+  mongodb:
+    image: mongo:7.0
+    container_name: pfr-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DBNAME}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - tp-network
+
+# Interface web pour MongoDB
+  mongo-express:
+    image: mongo-express:latest
+    container_name: pfr-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - tp-network
+
+  # Base de données relationnelle SQL
+  postgres:
+    image: postgres:16
+    container_name: pfr-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: datapulse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tp-network
+
+# Interface web pour PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pfr-pgadmin
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "8082:80"   # Changement de 8080 à 8082 pour éviter les conflits Windows
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - tp-network
+
+volumes:
+  postgres_data:
+  minio_data:
+  mongo_data:
+  pgadmin_data:
+
+networks:
+  tp-network:
+    driver: bridge
