@@ -83,9 +83,52 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
-      - "8082:80"   # Changement de 8080 à 8082 pour éviter les conflits Windows
+      - "8082:80" 
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - tp-network
+  
+
+# Spark Master unifié
+  spark-master:
+      image: apache/spark:3.5.0
+      container_name: spark-master
+      env_file:
+        - .env # Transmet automatiquement TOUTES les variables du .env à l'intérieur du conteneur
+      environment:
+        - SPARK_MODE=master
+        - SPARK_RPC_AUTHENTICATION_ENABLED=no
+        - SPARK_RPC_ENCRYPTION_ENABLED=no
+        - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+        - SPARK_SSL_ENABLED=no
+      ports:
+        - "8080:8080"
+        - "7077:7077"
+      command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master # Force le Master à rester actif
+      volumes:
+        - .:/opt/spark/work #Partage le projet Windows avec le conteneur
+      networks:
+        - tp-network
+
+    # Spark Worker unifié 
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2 
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 # Force le Worker à rester actif
+    volumes:
+      - .:/opt/spark/work # Partage le projet Windows avec le conteneur
     networks:
       - tp-network
 
@@ -97,4 +140,4 @@ volumes:
 
 networks:
   tp-network:
-    driver: bridge
+    driver: bridge  

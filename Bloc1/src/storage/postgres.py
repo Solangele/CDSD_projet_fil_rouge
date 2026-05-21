@@ -36,6 +36,7 @@ def init_postgres_schema():
             instrument_id INT references instruments(id) ON DELETE CASCADE,
             source_dataset VARCHAR(100) NOT NULL,
             size_bytes BIGINT,
+            duration_seconds REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -103,13 +104,14 @@ def load_silver_to_gold():
         try:
             cur.execute(
                 """
-                INSERT INTO audio_tracks(filename, minio_path, instrument_id, source_dataset, size_bytes)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO audio_tracks(filename, minio_path, instrument_id, source_dataset, size_bytes, duration_seconds)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (minio_path) DO NOTHING;
                 """,
-                (doc['filename'], doc['minio_path'], instrument_id, doc['source'], doc['size_bytes'])
+                (doc['filename'], doc['minio_path'], instrument_id, doc['source'], doc['size_bytes'], doc.get('duration_seconds'))
             )   
             tracks_inserted += cur.rowcount
+            
         except Exception as e:
             print(f"Erreur insertion piste {doc['filename']} : {e}")
             conn.rollback()

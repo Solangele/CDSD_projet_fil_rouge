@@ -24,3 +24,9 @@ Thumbs.db
 data/
 models/*.keras
 models/*.pkl
+
+
+# --- Logs et fichiers temporaires de Spark ---
+app-2026*/
+spark-warehouse/
+*.log
